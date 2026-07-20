@@ -565,6 +565,71 @@ class AIF360RejectOptionPredictor:
         ).ravel()
     
 
+class InputRepairPredictor:
+    """
+    FairModel-compatible predictor for Post: Input Repair.
+
+    Prediction rule:
+        raw df
+        -> infer intersectional group from protected columns
+        -> repair input features using train/validation reference data
+        -> fitted FairSelect preprocessor
+        -> fitted base estimator
+        -> probability / threshold
+    """
+
+    def __init__(
+        self,
+        *,
+        features,
+        protected_cols,
+        preprocessor,
+        estimator,
+        X_repair_reference,
+        A_repair_reference,
+        threshold=0.5,
+    ):
+        self.features = list(features)
+        self.protected_cols = list(protected_cols)
+        self.preprocessor = preprocessor
+        self.estimator = estimator
+
+        self.X_repair_reference = X_repair_reference.copy()
+        self.A_repair_reference = A_repair_reference.copy()
+
+        self.threshold = float(threshold)
+
+    def make_group(self, df):
+        return (
+            df[self.protected_cols]
+            .astype(str)
+            .agg("|".join, axis=1)
+        )
+
+    def repair_inputs(self, df):
+        X_new = df[self.features].copy()
+        A_new = self.make_group(df)
+
+        X_rep = input_repair_standardize_by_group(
+            self.X_repair_reference,
+            X_new,
+            self.A_repair_reference,
+            A_new,
+        )
+
+        return X_rep
+
+    def predict_proba(self, df):
+        X_rep = self.repair_inputs(df)
+        Xt = self.preprocessor.transform(X_rep)
+        return np.asarray(to_proba(self.estimator, Xt), dtype=float)
+
+    def predict(self, df):
+        p = self.predict_proba(df)
+        return (p >= self.threshold).astype(int)
+
+
+
 class KamiranRejectOptionPredictor:
     """
     FairModel-compatible predictor for Kamiran-style Reject Option Classification.
