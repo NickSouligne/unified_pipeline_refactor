@@ -65,59 +65,6 @@ def _make_aif360_prediction_dataset(groups, scores, group_mapping, labels=None, 
     return dataset
 
 
-def _make_aif360_prediction_dataset(
-    *,
-    groups,
-    scores,
-    group_mapping,
-    labels=None,
-    allow_unknown=False,
-):
-    """
-    Create a BinaryLabelDataset containing group membership,
-    binary labels, and classifier scores.
-    """
-    scores = np.asarray(scores,dtype=float,).ravel()
-
-    if labels is None:
-        labels = (scores >= 0.5).astype(int)
-    else:
-        labels = np.asarray(labels,dtype=int,).ravel()
-
-    if len(labels) != len(scores):
-        raise ValueError(
-            "AIF360 labels and scores are not aligned."
-        )
-
-    encoded_groups = _encode_aif360_groups(
-        groups,
-        group_mapping,
-        allow_unknown=allow_unknown,
-    )
-
-    if len(encoded_groups) != len(scores):
-        raise ValueError(
-            "AIF360 protected groups and scores are not aligned."
-        )
-
-    frame = pd.DataFrame({
-        AIF360_GROUP_COL: encoded_groups,
-        AIF360_LABEL_COL: labels.astype(float),
-    })
-
-    dataset = BinaryLabelDataset(
-        favorable_label=1.0,
-        unfavorable_label=0.0,
-        df=frame,
-        label_names=[AIF360_LABEL_COL],
-        protected_attribute_names=[AIF360_GROUP_COL],
-    )
-
-    dataset.scores = scores.reshape(-1, 1)
-
-    return dataset
-
-
 
 def group_thresholds_youden(groups: pd.Series, y_val: np.ndarray, p_val: np.ndarray) -> Dict[str, float]:
     """
