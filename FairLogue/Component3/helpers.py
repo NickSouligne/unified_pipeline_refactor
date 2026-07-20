@@ -83,18 +83,8 @@ def make_outcome_estimator(model_type: str, random_state: int = 42) -> ProbaEsti
     """
     model_type = model_type.lower()
     if model_type == "rf":
-        return RandomForestClassifier(
-            n_estimators=700,
-            max_depth=3,
-            random_state=random_state,
-            class_weight="balanced",
-        )
+        return RandomForestClassifier(n_estimators=700, max_depth=3, random_state=random_state, class_weight="balanced",)
     if model_type == "glm":
         #LogisticRegression = GLM logit with L2; stable & fast
-        return LogisticRegression(
-            max_iter=2000,
-            solver="lbfgs",
-            class_weight="balanced",
-            random_state=random_state,
-        )
+        return LogisticRegression(max_iter=2000, solver="lbfgs", class_weight="balanced", random_state=random_state,)
     raise ValueError("Unknown estimator kind; use 'rf' or 'glm'.")

@@ -61,11 +61,7 @@ def bootstrap_fairness_metrics(
     n = len(y_true)
 
     def _compute_metrics(y_b, pred_b, groups_b):
-        group_rates = _compute_group_rates(
-            y_true=y_b,
-            y_pred=pred_b,
-            groups=pd.Series(groups_b)
-        )
+        group_rates = _compute_group_rates(y_true=y_b, y_pred=pred_b, groups=pd.Series(groups_b))
 
         df_groups = pd.DataFrame([gr.__dict__ for gr in group_rates])
 
@@ -98,23 +94,15 @@ def bootstrap_fairness_metrics(
         }
 
     observed = _compute_metrics(y_true, y_pred, groups)
-
     boot_rows = []
 
     for b in range(n_bootstrap):
         idx = rng.choice(n, size=n, replace=True)
-
-        boot_metrics = _compute_metrics(
-            y_true[idx],
-            y_pred[idx],
-            groups[idx]
-        )
-
+        boot_metrics = _compute_metrics(y_true[idx], y_pred[idx], groups[idx])
         boot_metrics["bootstrap_id"] = b + 1
         boot_rows.append(boot_metrics)
 
     boot_df = pd.DataFrame(boot_rows)
-
     summary_rows = []
 
     for metric, observed_value in observed.items():
@@ -194,40 +182,27 @@ def cross_validate_intersectional_fairness(
     y = (df[outcome].values == positive_label).astype(int)
 
     # Intersectional group label
-    df["_intersectional_group_cv"] = (
-        df[protected_1].astype(str) + "|" + df[protected_2].astype(str)
-    )
+    df["_intersectional_group_cv"] = (df[protected_1].astype(str) + "|" + df[protected_2].astype(str))
 
     # Optional: stratify by both outcome and intersectional group
     # This helps each fold preserve both case/control balance and group composition.
-    stratify_label = (
-        pd.Series(y).astype(str) + "_" + df["_intersectional_group_cv"].astype(str)
-    )
+    stratify_label = (pd.Series(y).astype(str) + "_" + df["_intersectional_group_cv"].astype(str))
 
     # Some rare strata may have fewer than k observations.
     # If so, fall back to outcome-only stratification.
     stratum_counts = stratify_label.value_counts()
     if (stratum_counts < k).any():
-        print(
-            "Warning: Some outcome-by-intersectional-group strata have fewer "
-            f"than {k} observations. Falling back to outcome-only stratification."
-        )
+        print("Warning: Some outcome-by-intersectional-group strata have fewer "f"than {k} observations. Falling back to outcome-only stratification.")
         stratify_label = y
 
-    skf = StratifiedKFold(
-        n_splits=k,
-        shuffle=True,
-        random_state=random_state
-    )
+    skf = StratifiedKFold(n_splits=k, shuffle=True, random_state=random_state)
 
     fold_summaries = []
     per_group_results = []
     bootstrap_summaries = []
     bootstrap_samples = []
 
-    for fold_id, (train_idx, test_idx) in enumerate(
-        skf.split(df, stratify_label), start=1
-    ):
+    for fold_id, (train_idx, test_idx) in enumerate(skf.split(df, stratify_label), start=1):
         train_df = df.iloc[train_idx].drop(columns=["_intersectional_group_cv"])
         test_df = df.iloc[test_idx].drop(columns=["_intersectional_group_cv"])
 
@@ -262,6 +237,7 @@ def cross_validate_intersectional_fairness(
             "equal_opportunity_gap": results.equal_opportunity_gap,
             "n_test": len(test_df),
         })
+
         if run_bootstrap:
             boot = bootstrap_fairness_metrics(
                 y_true=intermediates["y_test"],
@@ -287,14 +263,12 @@ def cross_validate_intersectional_fairness(
 
     fold_metrics_df = pd.DataFrame(fold_summaries)
     per_group_cv_df = pd.concat(per_group_results, ignore_index=True)
+
     if run_bootstrap and bootstrap_summaries:
         bootstrap_summary_df = pd.concat(bootstrap_summaries, ignore_index=True)
         bootstrap_samples_df = pd.concat(bootstrap_samples, ignore_index=True)
 
-        overall_bootstrap_summary = (
-            bootstrap_summary_df
-            .groupby("metric")
-            .agg(
+        overall_bootstrap_summary = (bootstrap_summary_df.groupby("metric").agg(
                 mean_observed=("observed", "mean"),
                 mean_bootstrap=("bootstrap_mean", "mean"),
                 mean_se=("bootstrap_se", "mean"),
@@ -302,15 +276,9 @@ def cross_validate_intersectional_fairness(
                 mean_ci95_upper=("ci95_upper", "mean"),
                 significant_folds=("significant_95ci", "sum"),
                 total_folds=("significant_95ci", "count"),
-                mean_p_value=("p_value_approx", "mean"),
-            )
-            .reset_index()
-        )
+                mean_p_value=("p_value_approx", "mean"),).reset_index())
 
-        overall_bootstrap_summary["proportion_significant_folds"] = (
-            overall_bootstrap_summary["significant_folds"] /
-            overall_bootstrap_summary["total_folds"]
-        )
+        overall_bootstrap_summary["proportion_significant_folds"] = (overall_bootstrap_summary["significant_folds"] / overall_bootstrap_summary["total_folds"])
 
     else:
         bootstrap_summary_df = pd.DataFrame()
@@ -318,14 +286,7 @@ def cross_validate_intersectional_fairness(
         overall_bootstrap_summary = pd.DataFrame()
 
     # Aggregate fold-level robustness summary
-    summary_df = (
-        fold_metrics_df
-        .drop(columns=["fold", "n_test"])
-        .agg(["mean", "std", "min", "max"])
-        .T
-        .reset_index()
-        .rename(columns={"index": "metric"})
-    )
+    summary_df = (fold_metrics_df.drop(columns=["fold", "n_test"]).agg(["mean", "std", "min", "max"]).T.reset_index().rename(columns={"index": "metric"}))
 
     # 95% CI across folds using normal approximation
     summary_df["se"] = summary_df["std"] / np.sqrt(k)
@@ -381,9 +342,7 @@ def evaluate_intersectional_fairness(
         if min_group_size > 0:
             df_groups_filtered_local = df_groups_filtered_local[df_groups_filtered_local["n"] >= min_group_size]
         if require_class_balance:
-            df_groups_filtered_local = df_groups_filtered_local[
-                (df_groups_filtered_local["pos_true"] >= 1) & (df_groups_filtered_local["neg_true"] >= 1)
-            ]
+            df_groups_filtered_local = df_groups_filtered_local[(df_groups_filtered_local["pos_true"] >= 1) & (df_groups_filtered_local["neg_true"] >= 1)]
 
         if df_groups_filtered_local.empty:
             df_for_metrics_local = df_groups_local.copy()
@@ -423,8 +382,6 @@ def evaluate_intersectional_fairness(
             kept_groups_summary=(kept_summary_local if kept_summary_local is not None else pd.DataFrame({"group": [], "n": []})),
         )
 
-
-
     #Filter out small intersectional groups pre-training
     inter_series = df[protected_1].astype(str) + "|" + df[protected_2].astype(str)
     counts = inter_series.value_counts()
@@ -442,12 +399,10 @@ def evaluate_intersectional_fairness(
     #pre-training summary of group sizes
     kept_summary = counts.rename("n").reset_index().rename(columns={"index": "group"})
 
-    #Recompute binary target and intersectional groups after filtering
+    #Recompute binary target after filtering
     y = (df[outcome].values == positive_label).astype(int)
-    inter = (df[protected_1].astype(str) + "|" + df[protected_2].astype(str)).values
 
-
-    #Remove protected groups from feature set
+    #Remove protected groups from feature set (avoid collinearity between intersectional groups and protected attributes)
     if features is None:
         X = df.drop(columns=[outcome, protected_1, protected_2])
         feature_cols = X.columns.tolist()
@@ -472,11 +427,8 @@ def evaluate_intersectional_fairness(
     # ---------------------------------------------------------
     # Build or validate the train/test dataframes
     # ---------------------------------------------------------
-
     if (train_df is None) ^ (test_df is None):
-        raise ValueError(
-            "Provide both train_df and test_df, or neither."
-        )
+        raise ValueError("Provide both train_df and test_df, or neither.")
 
     if train_df is not None and test_df is not None:
         # Use the caller-provided split.
@@ -493,82 +445,41 @@ def evaluate_intersectional_fairness(
         #   - model features
         #   - outcome
         #   - protected characteristics
-        train_indices, test_indices = train_test_split(
-            np.arange(len(df)),
-            test_size=test_size,
-            random_state=random_state,
-            stratify=y,
-        )
+        train_indices, test_indices = train_test_split(np.arange(len(df)), test_size=test_size, random_state=random_state, stratify=y)
 
-        train_eval_df = (
-            df.iloc[train_indices]
-            .copy()
-            .reset_index(drop=True)
-        )
+        train_eval_df = (df.iloc[train_indices].copy().reset_index(drop=True))
 
-        test_eval_df = (
-            df.iloc[test_indices]
-            .copy()
-            .reset_index(drop=True)
-        )
+        test_eval_df = (df.iloc[test_indices].copy().reset_index(drop=True))
     
     # ---------------------------------------------------------
     # Validate required columns in both datasets
     # ---------------------------------------------------------
 
-    required_columns = {
-        outcome,
-        protected_1,
-        protected_2,
-        *feature_cols,
-    }
+    required_columns = {outcome, protected_1, protected_2, *feature_cols,}
 
-    missing_train_columns = sorted(
-        required_columns.difference(train_eval_df.columns)
-    )
+    missing_train_columns = sorted(required_columns.difference(train_eval_df.columns))
 
-    missing_test_columns = sorted(
-        required_columns.difference(test_eval_df.columns)
-    )
+    missing_test_columns = sorted(required_columns.difference(test_eval_df.columns))
 
     if missing_train_columns:
-        raise KeyError(
-            "The training dataframe is missing required columns: "
-            f"{missing_train_columns}"
-        )
+        raise KeyError("The training dataframe is missing required columns: "f"{missing_train_columns}")
 
     if missing_test_columns:
-        raise KeyError(
-            "The test dataframe is missing required columns: "
-            f"{missing_test_columns}"
-        )
+        raise KeyError("The test dataframe is missing required columns: "f"{missing_test_columns}")
 
     # ---------------------------------------------------------
     # Remove unusable features based on training data only
     # ---------------------------------------------------------
 
-    train_all_nan_cols = [
-        col
-        for col in feature_cols
-        if train_eval_df[col].isna().all()
-    ]
+    train_all_nan_cols = [col for col in feature_cols if train_eval_df[col].isna().all()]
 
     if train_all_nan_cols:
-        print(
-            "Dropping feature columns that are entirely missing "
-            f"in the training data: {train_all_nan_cols}"
-        )
+        print("Dropping feature columns that are entirely missing "f"in the training data: {train_all_nan_cols}")
 
-        feature_cols = [
-            col
-            for col in feature_cols
-            if col not in train_all_nan_cols
-        ]
+        feature_cols = [col for col in feature_cols if col not in train_all_nan_cols]
 
     if not feature_cols:
-        raise ValueError(
-            "No usable feature columns remain in the training data."
-        )
+        raise ValueError("No usable feature columns remain in the training data.")
 
     # ---------------------------------------------------------
     # Create or reuse the FairModel
@@ -579,140 +490,58 @@ def evaluate_intersectional_fairness(
         # only the training dataframe.
         fitted_fair_model = FairModel.fit_from_dataframe(
             train_df=train_eval_df,
-            name=(
-                "fairlogue_component1_"
-                f"{model_type.lower()}"
-            ),
+            name=("fairlogue_component1_"f"{model_type.lower()}"),
             outcome_col=outcome,
             features=feature_cols,
-            protected_cols=[
-                protected_1,
-                protected_2,
-            ],
+            protected_cols=[protected_1, protected_2,],
             model_type=model_type,
             model_params=model_params,
             positive_label=positive_label,
             threshold=threshold,
             random_state=random_state,
         )
-
     else:
         # A fitted FairModel was supplied, usually from FairSelect.
         # Do not call fit again.
         fitted_fair_model = fair_model
 
         if not isinstance(fitted_fair_model, FairModel):
-            raise TypeError(
-                "fair_model must be an instance of FairModel."
-            )
+            raise TypeError("fair_model must be an instance of FairModel.")
 
         if fitted_fair_model.features is None:
-            raise ValueError(
-                "The supplied FairModel does not define its "
-                "'features' attribute."
-            )
+            raise ValueError("The supplied FairModel does not define its 'features' attribute.")
 
-        missing_model_features = [
-            col
-            for col in fitted_fair_model.features
-            if col not in test_eval_df.columns
-        ]
+        missing_model_features = [col for col in fitted_fair_model.features if col not in test_eval_df.columns]
 
         if missing_model_features:
-            raise KeyError(
-                "The test dataframe is missing features required "
-                "by the supplied FairModel: "
-                f"{missing_model_features}"
-            )
+            raise KeyError("The test dataframe is missing features required by the supplied FairModel: "f"{missing_model_features}")
     
     # ---------------------------------------------------------
     # Create test labels and protected-group arrays
     # ---------------------------------------------------------
 
-    y_test = (
-        test_eval_df[outcome].to_numpy()
-        == positive_label
-    ).astype(int)
-
-    g_test = (
-        test_eval_df[protected_1].astype(str)
-        + "|"
-        + test_eval_df[protected_2].astype(str)
-    ).to_numpy()
-
-    p1_test = (
-        test_eval_df[protected_1]
-        .astype(str)
-        .to_numpy()
-    )
-
-    p2_test = (
-        test_eval_df[protected_2]
-        .astype(str)
-        .to_numpy()
-    )
-
-    # These are retained for compatibility and possible
-    # diagnostic output, even though they are not currently
-    # used in the fairness calculations.
-    y_train = (
-        train_eval_df[outcome].to_numpy()
-        == positive_label
-    ).astype(int)
-
-    g_train = (
-        train_eval_df[protected_1].astype(str)
-        + "|"
-        + train_eval_df[protected_2].astype(str)
-    ).to_numpy()
-
-    p1_train = (
-        train_eval_df[protected_1]
-        .astype(str)
-        .to_numpy()
-    )
-
-    p2_train = (
-        train_eval_df[protected_2]
-        .astype(str)
-        .to_numpy()
-    )
+    y_test = (test_eval_df[outcome].to_numpy()== positive_label).astype(int)
+    g_test = (test_eval_df[protected_1].astype(str) + "|" + test_eval_df[protected_2].astype(str)).to_numpy()
+    p1_test = (test_eval_df[protected_1].astype(str).to_numpy())
+    p2_test = (test_eval_df[protected_2].astype(str).to_numpy())
 
     # ---------------------------------------------------------
     # Predict using the FairModel interface
     # ---------------------------------------------------------
 
-    proba = np.asarray(
-        fitted_fair_model.predict_proba(test_eval_df),
-        dtype=float,
-    ).reshape(-1)
+    proba = np.asarray(fitted_fair_model.predict_proba(test_eval_df),dtype=float,).reshape(-1)
 
     if len(proba) != len(test_eval_df):
-        raise ValueError(
-            "FairModel.predict_proba() returned "
-            f"{len(proba)} scores for "
-            f"{len(test_eval_df)} test observations."
-        )
+        raise ValueError("FairModel.predict_proba() returned "f"{len(proba)} scores for "f"{len(test_eval_df)} test observations.")
 
     if not np.all(np.isfinite(proba)):
-        bad_count = int(
-            np.sum(~np.isfinite(proba))
-        )
+        bad_count = int(np.sum(~np.isfinite(proba)))
 
-        raise ValueError(
-            "FairModel.predict_proba() returned "
-            f"{bad_count} non-finite scores."
-        )
+        raise ValueError("FairModel.predict_proba() returned "f"{bad_count} non-finite scores.")
 
-    decision_threshold = (
-        float(threshold)
-        if threshold is not None
-        else float(fitted_fair_model.threshold)
-    )
+    decision_threshold = (float(threshold) if threshold is not None else float(fitted_fair_model.threshold))
 
-    y_hat = (
-        proba >= decision_threshold
-    ).astype(int)
+    y_hat = (proba >= decision_threshold).astype(int)
 
     try:
         auroc = roc_auc_score(y_test, proba)
@@ -775,17 +604,10 @@ def evaluate_intersectional_fairness(
         s = s.replace([np.inf, -np.inf], np.nan).dropna()
         return float(s.max() - s.min()) if not s.empty else float("nan")
     
-
     if filtered_note:
-        print("Warning: All groups were filtered out by min_group_size or require_class_balance. "
-              "Returning metrics on unfiltered groups, which may include NaN rates.")
-
-    
-    results = _compute_fairness_for_groups(
-        g_test,
-        dropped_groups_local=dropped_groups,
-        kept_summary_local=kept_summary.reset_index(drop=True),
-    )
+        print("Warning: All groups were filtered out by min_group_size or require_class_balance. Returning metrics on unfiltered groups, which may include NaN rates.")
+ 
+    results = _compute_fairness_for_groups(g_test, dropped_groups_local=dropped_groups, kept_summary_local=kept_summary.reset_index(drop=True),)
 
     non_intersectional = None
     if return_non_intersectional:
@@ -801,21 +623,15 @@ def evaluate_intersectional_fairness(
     figs: Dict[str, plt.Figure] = {}
     if make_plots:
         base = df_for_metrics.set_index("group")
-        figs["demographic_parity"] = _plot_bar(
-            base["positive_rate"], "Demographic Parity by Group", "P(Ŷ=1)"
-        )
+        figs["demographic_parity"] = _plot_bar(base["positive_rate"], "Demographic Parity by Group", "P(Ŷ=1)")
         #Per-group Equal Opportunity difference (TPR vs privileged)
-        figs["eo_diff_by_group"] = _plot_bar_series_by_group(
-            df=per_group_with_diffs,
-            value_col="eo_diff",
+        figs["eo_diff_by_group"] = _plot_bar_series_by_group(df=per_group_with_diffs, value_col="eo_diff",
             title=f"Equal Opportunity Difference by Group (privileged: {privileged_group})",
             ylabel="TPR_priv - TPR_group"
         )
 
         #Per-group Equalized Odds (single-number, max abs of TPR/FPR diffs)
-        figs["eods_maxabs_by_group"] = _plot_bar_series_by_group(
-            df=per_group_with_diffs,
-            value_col="eod_max_abs",
+        figs["eods_maxabs_by_group"] = _plot_bar_series_by_group(df=per_group_with_diffs, value_col="eod_max_abs",
             title=f"Equalized Odds (max |TPR/FPR diff|) by Group (privileged: {privileged_group})",
             ylabel="max(|ΔTPR|, |ΔFPR|)"
         )
@@ -824,10 +640,7 @@ def evaluate_intersectional_fairness(
 
         figs["fairness_landscape"] = _plot_fairness_matrix(
             per_group_with_diffs,
-            metric_cols=[
-                "positive_rate", "tpr", "fpr",
-                "eo_diff", "eod_fpr_diff", "eod_max_abs",
-            ],
+            metric_cols=["positive_rate", "tpr", "fpr", "eo_diff", "eod_fpr_diff", "eod_max_abs",],
             title=f"Fairness Metrics Matrix (privileged: {privileged_group})",
             annotate=True,
             sort_by="eod_max_abs",
@@ -849,16 +662,8 @@ def evaluate_intersectional_fairness(
                 "accuracy": accuracy,
                 "auroc": auroc,
                 "threshold": decision_threshold,
-                "test_size": (
-                    len(test_eval_df)
-                    / (
-                        len(train_eval_df)
-                        + len(test_eval_df)
-                    )
-                ),
-                "model_type": (
-                    fitted_fair_model.model_type
-                ),
+                "test_size": (len(test_eval_df) / (len(train_eval_df)+ len(test_eval_df))),
+                "model_type": (fitted_fair_model.model_type),
             },
             "non_intersectional": non_intersectional,
         }

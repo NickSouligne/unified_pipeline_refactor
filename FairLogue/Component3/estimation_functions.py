@@ -23,15 +23,9 @@ def get_defs_analysis(
     aggregate and per-group stats. See docs: docs/estimation_functions.md#get_defs_analysis
     """
     if method == "sr":
-        rates = compute_cf_group_rates_sr(
-            data_with_mu, group_col, outcome_col, tau,
-            groups_universe=groups_universe
-        )
+        rates = compute_cf_group_rates_sr(data_with_mu, group_col, outcome_col, tau, groups_universe=groups_universe)
     elif method == "dr":
-        rates = compute_cf_group_rates_dr(
-            data_with_mu, group_col, outcome_col, tau,
-            groups_universe=groups_universe
-        )
+        rates = compute_cf_group_rates_dr(data_with_mu, group_col, outcome_col, tau, groups_universe=groups_universe)
     else:
         raise ValueError("method must be 'sr' or 'dr'")
     return get_defs_from_rates(rates)
@@ -63,15 +57,10 @@ def analysis_nulldist(
     for r in range(R):
         df_perm = data.copy()
         df_perm[group_col] = rng.permutation(df_perm[group_col].values)
-        df_mu_perm, _, _ = build_outcome_models_and_scores(
-            df_perm, group_col, outcome_col, covariates,
-            model=model, model_type=model_type, n_splits=n_splits,
-            random_state=random_state + r, groups_universe=groups_universe,
-        )
-        defs_r = get_defs_analysis(
-            df_mu_perm, group_col, outcome_col, tau_fixed,
-            method=method, groups_universe=groups_universe
-        )
+        df_mu_perm, _, _ = build_outcome_models_and_scores(df_perm, group_col, outcome_col, covariates,model=model, model_type=model_type, n_splits=n_splits,
+            random_state=random_state + r, groups_universe=groups_universe,)
+        
+        defs_r = get_defs_analysis(df_mu_perm, group_col, outcome_col, tau_fixed,method=method, groups_universe=groups_universe)
         out_rows.append(defs_r)
 
     keys = sorted(set().union(*[row.keys() for row in out_rows]))
@@ -107,15 +96,10 @@ def bs_rescaled_analysis(
     for b in range(B):
         idx = rng.choice(n, size=m, replace=True)
         df_boot = data.iloc[idx].reset_index(drop=True)
-        df_mu, tau_boot, _ = build_outcome_models_and_scores(
-            df_boot, group_col, outcome_col, covariates,
-            model=model, model_type=model_type, n_splits=n_splits,
-            random_state=random_state + b, groups_universe=groups_universe,
-        )
-        defs_b = get_defs_analysis(
-            df_mu, group_col, outcome_col, tau_boot,
-            method=method, groups_universe=groups_universe
-        )
+        df_mu, tau_boot, _ = build_outcome_models_and_scores(df_boot, group_col, outcome_col, covariates, model=model, model_type=model_type, n_splits=n_splits,
+            random_state=random_state + b, groups_universe=groups_universe,)
+        
+        defs_b = get_defs_analysis(df_mu, group_col, outcome_col, tau_boot, method=method, groups_universe=groups_universe)
         out.append(defs_b)
 
     return out
@@ -153,10 +137,8 @@ def analysis_estimation(
         raise ValueError("Provide both train_df and test_df, or neither.")
 
     if train_df is not None:
-        #groups universe should cover both
-        groups_universe = sorted(
-            _as_str_groups(pd.concat([train_df[group_col], test_df[group_col]])).unique().tolist()
-        )
+        groups_universe = sorted(_as_str_groups(pd.concat([train_df[group_col], test_df[group_col]])).unique().tolist())
+
         df_mu, tau_obs, groups = build_outcome_models_and_scores_fixed_split(
             train_df=train_df,
             test_df=test_df,
@@ -170,40 +152,26 @@ def analysis_estimation(
         )
     else:
         groups_universe = sorted(_as_str_groups(data[group_col]).unique().tolist())
-        df_mu, tau_obs, groups = build_outcome_models_and_scores(
-            data, group_col, outcome_col, covariates,
-            model=model, model_type=model_type,
-            n_splits=n_splits, random_state=random_state,
-            groups_universe=groups_universe,
-        )
+        df_mu, tau_obs, groups = build_outcome_models_and_scores(data, group_col, outcome_col, covariates, model=model, model_type=model_type,
+            n_splits=n_splits, random_state=random_state, groups_universe=groups_universe,)
+        
     tau = float(cutoff) if cutoff is not None else tau_obs
 
     #Compute metrics on observed data
-    defs = get_defs_analysis(
-        df_mu, group_col, outcome_col, tau,
-        method=method, groups_universe=groups_universe
-    )
+    defs = get_defs_analysis(df_mu, group_col, outcome_col, tau, method=method, groups_universe=groups_universe)
 
     results: Dict[str, object] = {"defs": defs, "est_choice": df_mu.copy(), "tau": tau, "groups": groups}
 
     #Generate null distribution if requested
     if gen_null:
-        table_null = analysis_nulldist(
-            data, group_col, outcome_col, covariates, tau_fixed=tau,
-            R=R_null, model=model, model_type=model_type,
-            n_splits=n_splits, random_state=random_state + 13,
-            method=method, groups_universe=groups_universe,
-        )
+        table_null = analysis_nulldist(data, group_col, outcome_col, covariates, tau_fixed=tau, R=R_null, model=model, model_type=model_type,
+            n_splits=n_splits, random_state=random_state + 13, method=method, groups_universe=groups_universe,)
         results["table_null"] = table_null
 
     #Generate bootstrap draws if requested
     if bootstrap == "rescaled":
-        boot_out = bs_rescaled_analysis(
-            data, group_col, outcome_col, covariates,
-            B=B, m_factor=m_factor, model=model, model_type=model_type,
-            n_splits=n_splits, random_state=random_state + 29,
-            method=method, groups_universe=groups_universe,
-        )
+        boot_out = bs_rescaled_analysis(data, group_col, outcome_col, covariates, B=B, m_factor=m_factor, model=model, model_type=model_type,
+            n_splits=n_splits, random_state=random_state + 29, method=method, groups_universe=groups_universe,)
         results["boot_out"] = boot_out
 
     return results
@@ -242,7 +210,6 @@ def ci_norm(bs_rescaled: pd.DataFrame, est_named: Dict[str, float], parameter: s
     Returns var, point_est, se_est, ci_low, ci_high for a single parameter.
     See docs: docs/estimation_functions.md#ci_norm
     """
-    
     var_est = np.nanvar(bs_rescaled[parameter], ddof=1) #Variance from rescaled bootstrap draws
     point_est = est_named[parameter] #Original estimate
     se_est = np.sqrt(var_est / sampsize) #Standard error 

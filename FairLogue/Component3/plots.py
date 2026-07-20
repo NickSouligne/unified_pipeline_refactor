@@ -15,36 +15,11 @@ def annotate_plot(ax, uval, x_pos):
     Draw the dashed threshold line and a boxed u-value label.
     """
     x_pos = float(x_pos)
-
-    line = ax.axvline(
-        x=x_pos,
-        color="red",
-        linestyle="--",
-        linewidth=2.0,
-        zorder=10,
-    )
-
-    annotation = ax.annotate(
-        f"u-value = {uval:.3f}",
-        xy=(x_pos, 0.92),
-        xycoords=("data", "axes fraction"),
-        xytext=(-8, 0),
-        textcoords="offset points",
-        ha="right",
-        va="top",
-        color="black",
-        fontsize=13,
-        zorder=11,
-        bbox={
-            "boxstyle": "round,pad=0.25",
-            "facecolor": "white",
-            "edgecolor": "0.55",
-            "linewidth": 1.0,
-            "alpha": 0.95,
-        },
-        annotation_clip=False,
-    )
-
+    line = ax.axvline(x=x_pos, color="red", linestyle="--", linewidth=2.0, zorder=10,)
+    annotation = ax.annotate(f"u-value = {uval:.3f}", xy=(x_pos, 0.92), xycoords=("data", "axes fraction"), xytext=(-8, 0), 
+                             textcoords="offset points", ha="right", va="top", color="black", fontsize=13, zorder=11,
+                             bbox={"boxstyle": "round,pad=0.25", "facecolor": "white", "edgecolor": "0.55", "linewidth": 1.0, "alpha": 0.95,}, 
+                             annotation_clip=False,)
     return line, annotation
 
 def _ecdf(arr: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -156,20 +131,11 @@ def get_plots(results: Dict[str, object], sampsize: Optional[int] = None, alpha:
 
         keep = ["avg_neg", "avg_pos", "max_neg", "max_pos", "var_neg", "var_pos"]
 
-        est_named_obs = pd.DataFrame(
-            [(k, v) for k, v in est_named.items() if k in keep],
-            columns=["stat", "value_obs"],
-        )
+        est_named_obs = pd.DataFrame([(k, v) for k, v in est_named.items() if k in keep], columns=["stat", "value_obs"],)
 
         null_subset = null_df[[c for c in keep if c in null_df.columns]]
-        table_null_delta = (
-            null_subset
-            .melt(var_name="stat", value_name="value_null")
-            .merge(est_named_obs, on="stat", how="left")
-        )
-        table_null_delta["obs_minus_null"] = (
-            table_null_delta["value_obs"] - table_null_delta["value_null"]
-        )
+        table_null_delta = (null_subset.melt(var_name="stat", value_name="value_null").merge(est_named_obs, on="stat", how="left"))
+        table_null_delta["obs_minus_null"] = (table_null_delta["value_obs"] - table_null_delta["value_null"])
 
 
         def _uval(vec_null: pd.Series, obs: float, delta: float) -> float:
@@ -217,20 +183,10 @@ def get_plots(results: Dict[str, object], sampsize: Optional[int] = None, alpha:
             fig, axes = plt.subplots(3, 2, figsize=(15, 18))
 
             for ax, (stat, title) in zip(axes.flatten(), stats_grid):
-                vals = (
-                    table_null_delta.loc[table_null_delta["stat"] == stat, "obs_minus_null"]
-                    .dropna()
-                    .to_numpy()
-                )
+                vals = (table_null_delta.loc[table_null_delta["stat"] == stat, "obs_minus_null"].dropna().to_numpy())
 
                 if vals.size > 0:
-                    sns.kdeplot(
-                        vals,
-                        ax=ax,
-                        fill=True,
-                        bw_adjust=0.5,
-                        color="steelblue",
-                    )
+                    sns.kdeplot(vals, ax=ax, fill=True, bw_adjust=0.5, color="steelblue",)
 
                     lo = np.percentile(vals, 1.0)
                     hi = np.percentile(vals, 99.0)
@@ -248,77 +204,32 @@ def get_plots(results: Dict[str, object], sampsize: Optional[int] = None, alpha:
 
                     ax.set_xlim(xmin, xmax)
 
-                    
-
                     # The line marks the disparity threshold used to calculate u
-                    annotate_plot(
-                        ax,
-                        uval,
-                        x_pos=delta_uval,
-                    )
+                    annotate_plot(ax, uval, x_pos=delta_uval,)
 
-                ax.set_title(
-                    title,
-                    fontsize=14,
-                    pad=16,
-                )
+                ax.set_title(title, fontsize=14, pad=16,)
+                ax.set_xlabel("Observed − Counterfactual", fontsize=12, labelpad=16)
+                ax.set_ylabel("Density", fontsize=12, labelpad=10)
+                ax.tick_params(axis="x", labelsize=11, pad=8)
+                ax.tick_params(axis="y", labelsize=11, pad=6)
 
-                ax.set_xlabel(
-                    "Observed − Counterfactual",
-                    fontsize=12,
-                    labelpad=16,
-                )
-
-                ax.set_ylabel(
-                    "Density",
-                    fontsize=12,
-                    labelpad=10,
-                )
-
-                ax.tick_params(
-                    axis="x",
-                    labelsize=11,
-                    pad=8,
-                )
-
-                ax.tick_params(
-                    axis="y",
-                    labelsize=11,
-                    pad=6,
-                )
-
-            fig.subplots_adjust(
-                left=0.10,
-                right=0.97,
-                bottom=0.07,
-                top=0.96,
-                wspace=0.28,   # horizontal space between columns
-                hspace=0.72,   # vertical space between rows
-            )
-
+            fig.subplots_adjust(left=0.10, right=0.97, bottom=0.07, top=0.96, wspace=0.28, hspace=0.72)
             plt.show()
 
             neg_stats = [("avg_neg", "Average"), ("max_neg", "Maximum"), ("var_neg", "Variational")]
             pos_stats = [("avg_pos", "Average"), ("max_pos", "Maximum"), ("var_pos", "Variational")]
-
             fig, axes = plt.subplots(1, 2, figsize=(12, 5), dpi=300, sharey=True)
 
-            for ax, stats, panel_title in [
-                (axes[0], neg_stats, "Negative"),
-                (axes[1], pos_stats, "Positive"),
-            ]:
-                #ax.axvline(uval, linestyle=":", linewidth=1)
+            for ax, stats, panel_title in [(axes[0], neg_stats, "Negative"), (axes[1], pos_stats, "Positive")]:
+                # ax.axvline(uval, linestyle=":", linewidth=1)
                 ax.set_title(f"ECDF of Observed vs Counterfactual Disparities ({panel_title})")
                 ax.set_xlabel("Observed − Counterfactual")
                 ax.set_ylim(0, 1)
 
                 for stat, label in stats:
-                    vals = (
-                        table_null_delta.loc[table_null_delta["stat"] == stat, "obs_minus_null"]
-                        .dropna()
-                        .to_numpy()
-                    )
+                    vals = table_null_delta.loc[table_null_delta["stat"] == stat, "obs_minus_null"].dropna().to_numpy()
                     xs, ys = _ecdf(vals)
+
                     if xs.size == 0:
                         continue
 
@@ -328,81 +239,40 @@ def get_plots(results: Dict[str, object], sampsize: Optional[int] = None, alpha:
                 ax.grid(True, linewidth=0.5, alpha=0.4)
                 ax.legend(frameon=True, fontsize=10)
 
-
             axes[0].set_ylabel("ECDF")
             plt.tight_layout()
             plt.show()
 
-
-
-    subgroup_cols = [
-        c for c in null_df.columns
-        if c.startswith("cfpr_") or c.startswith("cfnr_")
-    ]
+    subgroup_cols = [c for c in null_df.columns if c.startswith("cfpr_") or c.startswith("cfnr_")]
 
     if subgroup_cols:
         tmp = null_df[subgroup_cols].copy()
         tmp["draw"] = np.arange(len(tmp), dtype=int)
-
-        group_null_long = tmp.melt(
-            id_vars="draw",
-            var_name="stat",
-            value_name="value_null",
-        )
-
+        group_null_long = tmp.melt(id_vars="draw", var_name="stat", value_name="value_null")
         group_null_long["metric"] = group_null_long["stat"].str.split("_", n=1).str[0]
-        group_null_long["group"]  = group_null_long["stat"].str.split("_", n=1).str[1]
+        group_null_long["group"] = group_null_long["stat"].str.split("_", n=1).str[1]
     else:
-        group_null_long = pd.DataFrame(
-            columns=["draw", "stat", "metric", "group", "value_null"]
-        )
+        group_null_long = pd.DataFrame(columns=["draw", "stat", "metric", "group", "value_null"])
 
-    # ------------------------------------------------------------------
-    # Plot subgroup null distributions (boxplots)
-    # ------------------------------------------------------------------
+    # Plot subgroup null distributions
     ACCENT = "#0072B2"
-    BOX = "#D9D9D9"       
-    EDGE = "#4D4D4D"      
+    BOX = "#D9D9D9"
+    EDGE = "#4D4D4D"
 
-    sns.set_theme(style="whitegrid", context="talk")  
+    sns.set_theme(style="whitegrid", context="talk")
 
     if not group_null_long.empty:
         for metric in ["cfnr", "cfpr"]:
             d = group_null_long[group_null_long["metric"] == metric]
+
             if d.empty:
                 continue
 
-            order = (
-                d.groupby("group")["value_null"]
-                .mean()
-                .sort_values(ascending=False)
-                .index.tolist()
-            )
-
-            summ = (
-                d.groupby("group")["value_null"]
-                .agg(
-                    mean="mean",
-                    lo=lambda x: np.nanpercentile(x, 2.5),
-                    hi=lambda x: np.nanpercentile(x, 97.5),
-                )
-                .reindex(order)
-                .reset_index()
-            )
+            order = d.groupby("group")["value_null"].mean().sort_values(ascending=False).index.tolist()
+            summ = d.groupby("group")["value_null"].agg(mean="mean", lo=lambda x: np.nanpercentile(x, 2.5), hi=lambda x: np.nanpercentile(x, 97.5)).reindex(order).reset_index()
 
             plt.figure(figsize=(12, 6))
-            ax = sns.boxplot(
-                data=d,
-                x="group",
-                y="value_null",
-                order=order,
-                showfliers=False,
-                width=0.6,
-                boxprops=dict(facecolor=BOX, edgecolor=EDGE, linewidth=1.2),
-                whiskerprops=dict(color=EDGE, linewidth=1.2),
-                capprops=dict(color=EDGE, linewidth=1.2),
-                medianprops=dict(color=EDGE, linewidth=2.0),
-            )
+            ax = sns.boxplot(data=d, x="group", y="value_null", order=order, showfliers=False, width=0.6, boxprops=dict(facecolor=BOX, edgecolor=EDGE, linewidth=1.2), whiskerprops=dict(color=EDGE, linewidth=1.2), capprops=dict(color=EDGE, linewidth=1.2), medianprops=dict(color=EDGE, linewidth=2.0))
 
             x = np.arange(len(order))
             y = summ["mean"].to_numpy()
@@ -410,46 +280,36 @@ def get_plots(results: Dict[str, object], sampsize: Optional[int] = None, alpha:
             hi = summ["hi"].to_numpy()
 
             ax.scatter(x, y, color=ACCENT, s=40, zorder=3)
-            ax.errorbar(
-                x,
-                y,
-                yerr=np.vstack([y - lo, hi - y]),
-                fmt="none",
-                ecolor=ACCENT,
-                elinewidth=2.0,
-                capsize=4,
-                zorder=3,
-            )
-
+            ax.errorbar(x, y, yerr=np.vstack([y - lo, hi - y]), fmt="none", ecolor=ACCENT, elinewidth=2.0, capsize=4, zorder=3)
             ax.set_xlabel("Group")
             ax.set_ylabel(f"Null {metric.upper()}")
             ax.set_title(f"Null distribution of subgroup {metric.upper()}")
             ax.tick_params(axis="x", rotation=45)
-
-            # optional: remove top/right spines for a cleaner look
             sns.despine(ax=ax)
 
             plt.tight_layout()
             plt.show()
-    
-    #per-group scatter (with error bars if CI present)
+
+    # Per-group scatter with error bars when confidence intervals are available
     try:
         for sign, ylabel in [("cfpr", "Group cFPR Estimate"), ("cfnr", "Group cFNR Estimate")]:
-            df_sig = est_summaries[est_summaries['sign'] == sign]
+            df_sig = est_summaries[est_summaries["sign"] == sign]
+
             if not df_sig.empty:
                 plt.figure(figsize=(10, 6))
                 x = np.arange(len(df_sig))
-                yvals = df_sig['value'].to_numpy(dtype=float)
+                yvals = df_sig["value"].to_numpy(dtype=float)
                 plt.scatter(x, yvals)
-                if {'low_trans', 'high_trans'}.issubset(df_sig.columns):
-                    lows = (yvals - df_sig['low_trans'].to_numpy()).clip(min=0)
-                    highs = (df_sig['high_trans'].to_numpy() - yvals).clip(min=0)
-                    plt.errorbar(x, yvals, yerr=[lows, highs], fmt='none', capsize=5, elinewidth=2, alpha=0.8)
-                plt.xticks(x, df_sig['stat'].tolist(), rotation=45, ha='right')
+
+                if {"low_trans", "high_trans"}.issubset(df_sig.columns):
+                    lows = (yvals - df_sig["low_trans"].to_numpy()).clip(min=0)
+                    highs = (df_sig["high_trans"].to_numpy() - yvals).clip(min=0)
+                    plt.errorbar(x, yvals, yerr=[lows, highs], fmt="none", capsize=5, elinewidth=2, alpha=0.8)
+
+                plt.xticks(x, df_sig["stat"].tolist(), rotation=45, ha="right")
                 plt.ylabel(ylabel)
                 plt.tight_layout()
     except Exception:
         pass
 
     return est_summaries, table_null_delta, table_uval, group_null_long
-

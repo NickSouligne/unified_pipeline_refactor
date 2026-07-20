@@ -16,8 +16,6 @@ from .deps import (
     brier_score_loss, IsotonicRegression,
 )
 
-
-
 def _sigmoid(z):
     return 1.0 / (1.0 + np.exp(-z))
 
@@ -52,24 +50,9 @@ def _build_auditor(auditor_type="ridge", random_state=0):
     raise ValueError("auditor_type must be 'ridge' or 'tree'.")
 
 
-def apply_multiaccuracy_boost(
-    X_va,
-    X_te,
-    y_va,
-    A_va,
-    A_te,
-    p_val,
-    p_test,
-    *,
-    prep=None,
-    alpha=0.02,
-    eta=None,
-    max_iters=25,
-    auditor_type="ridge",
-    random_state=0,
-    eps=1e-6,
-    include_group_in_auditor=True,
-):
+
+def apply_multiaccuracy_boost(X_va, X_te, y_va, A_va, A_te, p_val, p_test, *, prep=None, alpha=0.02, eta=None, max_iters=25, 
+                              auditor_type="ridge", random_state=0, eps=1e-6, include_group_in_auditor=True,):
     """
     Apply iterative multiaccuracy boosting using validation as the audit set
     and return adjusted test probabilities.
@@ -90,22 +73,17 @@ def apply_multiaccuracy_boost(
     """
     if eta is None:
         eta = alpha
-
     p0_va = np.clip(np.asarray(p_val, dtype=float), eps, 1.0 - eps)
     p0_te = np.clip(np.asarray(p_test, dtype=float), eps, 1.0 - eps)
-
     # Fixed partitions from current incoming predictions
     mask_va_X  = np.ones_like(p0_va, dtype=bool)
     mask_va_X0 = p0_va <= 0.5
     mask_va_X1 = ~mask_va_X0
-
     mask_te_X  = np.ones_like(p0_te, dtype=bool)
     mask_te_X0 = p0_te <= 0.5
     mask_te_X1 = ~mask_te_X0
-
     masks_va = {"X": mask_va_X, "X0": mask_va_X0, "X1": mask_va_X1}
     masks_te = {"X": mask_te_X, "X0": mask_te_X0, "X1": mask_te_X1}
-
     # Auditor features
     if prep is not None:
         Xva_feat = prep.transform(X_va)
@@ -113,7 +91,6 @@ def apply_multiaccuracy_boost(
     else:
         Xva_feat = np.asarray(X_va)
         Xte_feat = np.asarray(X_te)
-
     if include_group_in_auditor:
         G_va, gcols = _make_group_onehot(A_va)
         G_te, _ = _make_group_onehot(A_te, columns=gcols)
@@ -122,63 +99,44 @@ def apply_multiaccuracy_boost(
     else:
         Z_va = np.asarray(Xva_feat)
         Z_te = np.asarray(Xte_feat)
-
     logits_va = _logit(p0_va, eps=eps).copy()
     logits_te = _logit(p0_te, eps=eps).copy()
-
     def predict_h(aud, Z):
         h = aud.predict(Z)
         return np.clip(h, -1.0, 1.0)
-
     for t in range(max_iters):
         p_va_t = _sigmoid(logits_va)
         residual_va = p_va_t - y_va.to_numpy().astype(float)
-
         best_name = None
         best_score = -np.inf
         best_aud = None
-
         for name, m in masks_va.items():
             if m.sum() < 10:
                 continue
-
             aud = _build_auditor(auditor_type=auditor_type, random_state=random_state)
             aud.fit(Z_va[m], residual_va[m])
-
             h_va = predict_h(aud, Z_va)
             score = float(np.mean(h_va[m] * residual_va[m]))
-
             # use abs(score) to mirror true multiaccuracy selection
             if abs(score) > best_score:
                 best_score = abs(score)
                 best_name = name
                 best_aud = aud
                 best_signed_score = score
-
         if best_name is None or best_score <= alpha:
             break
-
         h_va_star = predict_h(best_aud, Z_va)
         h_te_star = predict_h(best_aud, Z_te)
-
         m_va_star = masks_va[best_name]
         m_te_star = masks_te[best_name]
-
         update_sign = np.sign(best_signed_score)
         logits_va[m_va_star] = logits_va[m_va_star] - eta * update_sign * h_va_star[m_va_star]
         logits_te[m_te_star] = logits_te[m_te_star] - eta * update_sign * h_te_star[m_te_star]
-
     return _sigmoid(logits_te)
 
 
 
-def filter_intersectional_groups(
-    df: pd.DataFrame,
-    protected_cols: List[str],
-    target_col: str,
-    min_group_size: int = 20,
-    require_outcome_coverage: bool = True,
-):
+def filter_intersectional_groups(df: pd.DataFrame, protected_cols: List[str], target_col: str, min_group_size: int = 20, require_outcome_coverage: bool = True,):
     """
     Remove intersectional groups that are too small or do not contain both
     outcome classes.
@@ -187,58 +145,23 @@ def filter_intersectional_groups(
       1. total group size >= min_group_size
       2. if require_outcome_coverage=True, the group has at least one 0 and one 1
     """
-
     df = df.copy()
     df["_intersectional_group"] = group_key(df, protected_cols)
-
-    group_summary = (
-        df.groupby("_intersectional_group")[target_col]
-          .agg(
-              n="size",
-              n_positive=lambda x: int((x == 1).sum()),
-              n_negative=lambda x: int((x == 0).sum()),
-              n_outcome_classes=lambda x: x.nunique()
-          )
-          .reset_index()
-    )
-
+    group_summary = (df.groupby("_intersectional_group")[target_col].agg(n="size", n_positive=lambda x: int((x == 1).sum()), n_negative=lambda x: int((x == 0).sum()), 
+                                                                         n_outcome_classes=lambda x: x.nunique()).reset_index())
     group_summary["too_small"] = group_summary["n"] < min_group_size
-
     if require_outcome_coverage:
-        group_summary["incomplete_outcome_coverage"] = (
-            (group_summary["n_positive"] == 0) |
-            (group_summary["n_negative"] == 0)
-        )
+        group_summary["incomplete_outcome_coverage"] = ((group_summary["n_positive"] == 0) | (group_summary["n_negative"] == 0))
     else:
         group_summary["incomplete_outcome_coverage"] = False
-
-    group_summary["removed"] = (
-        group_summary["too_small"] |
-        group_summary["incomplete_outcome_coverage"]
-    )
-
-    keep_groups = group_summary.loc[
-        ~group_summary["removed"],
-        "_intersectional_group"
-    ]
-
-    filtered_df = (
-        df[df["_intersectional_group"].isin(keep_groups)]
-        .drop(columns=["_intersectional_group"])
-        .copy()
-    )
-
+    group_summary["removed"] = (group_summary["too_small"] | group_summary["incomplete_outcome_coverage"])
+    keep_groups = group_summary.loc[~group_summary["removed"], "_intersectional_group"]
+    filtered_df = (df[df["_intersectional_group"].isin(keep_groups)].drop(columns=["_intersectional_group"]).copy())
     removed_groups = group_summary[group_summary["removed"]].copy()
-
-    message = (
-        f"Intersectional group filter applied: "
-        f"removed {len(removed_groups)} groups and "
-        f"{len(df) - len(filtered_df)} rows. "
-        f"Minimum group size = {min_group_size}. "
-        f"Require both outcome classes = {require_outcome_coverage}."
-    )
-
+    message = (f"Intersectional group filter applied: " f"removed {len(removed_groups)} groups and " f"{len(df) - len(filtered_df)} rows. " f"Minimum group size = {min_group_size}. " f"Require both outcome classes = {require_outcome_coverage}.")
     return filtered_df, removed_groups, message
+
+
 
 def estimator_accepts_sample_weight(estimator) -> bool:
     """
@@ -253,16 +176,9 @@ def estimator_accepts_sample_weight(estimator) -> bool:
         return "sample_weight" in sig.parameters
     except (TypeError, ValueError):
         return False
+    
 
-
-def fit_with_optional_sample_weight(
-    estimator,
-    X,
-    y,
-    sample_weight=None,
-    *,
-    random_state=42,
-):
+def fit_with_optional_sample_weight(estimator, X, y, sample_weight=None, *, random_state=42,):
     """
     Fit an estimator with optional sample weights.
 
@@ -271,46 +187,16 @@ def fit_with_optional_sample_weight(
     """
     if sample_weight is None:
         return estimator.fit(X, y)
-
     if estimator_accepts_sample_weight(estimator):
-        return estimator.fit(
-            X,
-            y,
-            sample_weight=sample_weight,
-        )
-
-    weights = np.asarray(
-        sample_weight,
-        dtype=float,
-    )
-
-    weights = np.clip(
-        weights,
-        1e-12,
-        None,
-    )
-
-    probabilities = (
-        weights / weights.sum()
-    )
-
+        return estimator.fit(X, y, sample_weight=sample_weight,)
+    weights = np.asarray(sample_weight, dtype=float,)
+    weights = np.clip(weights, 1e-12, None,)
+    probabilities = (weights / weights.sum())
     n = len(y)
+    rng = np.random.default_rng(int(random_state))
+    indices = rng.choice(n, size=n, replace=True, p=probabilities,)
+    return estimator.fit(X[indices], np.asarray(y)[indices],)
 
-    rng = np.random.default_rng(
-        int(random_state)
-    )
-
-    indices = rng.choice(
-        n,
-        size=n,
-        replace=True,
-        p=probabilities,
-    )
-
-    return estimator.fit(
-        X[indices],
-        np.asarray(y)[indices],
-    )
 
 def _fmt(x):
     """
@@ -342,8 +228,8 @@ def _fmt_delta(curr, base, *, invert=False):
     """
     if pd.isna(curr) or pd.isna(base):
         return "NA"
-    
-    d = (curr - base) #Raw difference
+    #Raw difference
+    d = (curr - base)
     if invert: #Invert sign for lower-is-better metrics
         d = -d
     return f"{d:+.3f}" #Format with sign and 3 decimals
@@ -386,6 +272,7 @@ def coerce_value(ptype, raw, choices=None):
     return raw
 
 
+
 def eval_tuple(s):
     """
     Parse a string representation of a tuple of ints into an actual tuple.
@@ -407,8 +294,6 @@ def eval_tuple(s):
         return None
     parts = [p.strip() for p in text.split(",")] #split commans and strip whitespace
     return tuple(int(p) for p in parts if p != "")
-
-
 def to_proba(model, X):
     """
     Convert model outputs into probabilities for the positive class.
@@ -433,6 +318,7 @@ def to_proba(model, X):
         z = model.decision_function(X)
         return 1.0 / (1.0 + np.exp(-z)) #Map logits to probabilities via sigmoid
     return model.predict(X).astype(float)
+
 
 
 def ece_bin(y_true, y_prob, n_bins=10):
@@ -482,8 +368,6 @@ def ece_bin(y_true, y_prob, n_bins=10):
         #Compute ece contribution from this bin
         ece += (m.mean()) * abs(acc - conf)
     return float(ece)
-
-
 def group_key(df: pd.DataFrame, protected_cols: List[str]) -> pd.Series:
     """
     Collapse one or more protected columns into a single intersectional group key.
@@ -497,8 +381,6 @@ def group_key(df: pd.DataFrame, protected_cols: List[str]) -> pd.Series:
     if len(protected_cols) == 0:
         return pd.Series(["ALL"] * len(df), index=df.index)
     return df[protected_cols].astype(str).agg("|".join, axis=1)
-
-
 def safe_auroc(y, p):
     """
     Safely compute AUROC, returning NaN if it cannot be computed.
@@ -513,8 +395,6 @@ def safe_auroc(y, p):
         return roc_auc_score(y, p)
     except Exception:
         return np.nan
-
-
 def safe_auprc(y, p):
     """
     Safely compute AUPRC, returning NaN if it cannot be computed.
@@ -529,6 +409,7 @@ def safe_auprc(y, p):
         return average_precision_score(y, p)
     except Exception:
         return np.nan
+    
 
 
 def youden_threshold(y, p):
@@ -553,17 +434,14 @@ def youden_threshold(y, p):
     y = np.asarray(y)
     p = np.asarray(p)
     #Sort thresholds by predicted probabilities
-    order = np.argsort(p) 
+    order = np.argsort(p)
     p_sorted = p[order]
-
-
-    best_j = -1 #Initialize best J statistic
+    #Initialize best J statistic
+    best_j = -1
     best_t = 0.5 #Default threshold if none found
-
     #Evaluate J statistic at each unique predicted probability
     for t in np.unique(p_sorted):
         pred = (p >= t).astype(int) #Predictions at threshold t
-
         #Compute confusion matrix components
         tp = ((pred == 1) & (y == 1)).sum()
         tn = ((pred == 0) & (y == 0)).sum()
@@ -581,6 +459,7 @@ def youden_threshold(y, p):
             best_j = j
             best_t = float(t)
     return float(best_t)
+
 
 
 def confusion_rates(y, yhat):
@@ -616,6 +495,7 @@ def confusion_rates(y, yhat):
     return dict(TPR=tpr, FPR=fpr, PPV=ppv, NPV=npv, PPR=ppr, n=int(len(y)))
 
 
+
 def metrics_block(y, p, yhat):
     """
     Compute a standard block of overall performance metrics.
@@ -642,14 +522,9 @@ def metrics_block(y, p, yhat):
     dict
         Mapping metric name -> value.
     """
-    return dict(
-        ACC=accuracy_score(y, yhat),
-        AUROC=safe_auroc(y, p),
-        AUPRC=safe_auprc(y, p),
-        F1=f1_score(y, yhat) if len(np.unique(yhat)) > 1 else np.nan,
-        Brier=brier_score_loss(y, p),
-        ECE=ece_bin(y, p, n_bins=10),
-    )
+    return dict(ACC=accuracy_score(y, yhat), AUROC=safe_auroc(y, p), AUPRC=safe_auprc(y, p), F1=f1_score(y, yhat) if len(np.unique(yhat)) > 1 else np.nan, 
+                Brier=brier_score_loss(y, p), ECE=ece_bin(y, p, n_bins=10),)
+
 
 
 def macro_gaps(group_stats: pd.DataFrame, cols=("PPR", "TPR", "FPR")):
@@ -685,23 +560,19 @@ def macro_gaps(group_stats: pd.DataFrame, cols=("PPR", "TPR", "FPR")):
         }
     """
     out: Dict[str, Any] = {}
-
     # Compute range (max - min) for each requested metric across groups
     for c in cols:
         if c not in group_stats.columns:
             out[f"{c}_diff"] = np.nan
             continue
-
         vals = group_stats[c].dropna()
         out[f"{c}_diff"] = float(vals.max() - vals.min()) if len(vals) > 0 else np.nan
-
     # Standard fairness summaries
-    out["DP_diff"] = out.get("PPR_diff", np.nan)   # Demographic parity difference
+    # Demographic parity difference
+    out["DP_diff"] = out.get("PPR_diff", np.nan)
     out["EOp_diff"] = out.get("TPR_diff", np.nan)  # Equal opportunity difference
-
     tpr_diff = out.get("TPR_diff", np.nan)
     fpr_diff = out.get("FPR_diff", np.nan)
-
     if np.isnan(tpr_diff) and np.isnan(fpr_diff):
         out["EO_diff"] = np.nan
     elif np.isnan(tpr_diff):
@@ -710,96 +581,39 @@ def macro_gaps(group_stats: pd.DataFrame, cols=("PPR", "TPR", "FPR")):
         out["EO_diff"] = float(tpr_diff)
     else:
         out["EO_diff"] = float(max(tpr_diff, fpr_diff))
-
     return out
 
 
-def group_balanced_bootstrap_indices(
-    a_train: np.ndarray,
-    size: int,
-    *,
-    random_state=42,
-) -> np.ndarray:
+
+def group_balanced_bootstrap_indices(a_train: np.ndarray, size: int, *, random_state=42,) -> np.ndarray:
     """
     Draw a reproducible group-balanced bootstrap sample.
     """
-    a_train = np.asarray(
-        a_train
-    )
-
+    a_train = np.asarray(a_train)
     if len(a_train) == 0:
-        raise ValueError(
-            "a_train cannot be empty."
-        )
-
+        raise ValueError("a_train cannot be empty.")
     if size < 1:
-        raise ValueError(
-            f"size must be at least 1. Received {size}."
-        )
-
-    rng = np.random.default_rng(
-        int(random_state)
-    )
-
-    groups = pd.Series(
-        a_train
-    ).unique()
-
-    per_group = max(
-        1,
-        size // len(groups),
-    )
-
+        raise ValueError(f"size must be at least 1. Received {size}.")
+    rng = np.random.default_rng(int(random_state))
+    groups = pd.Series(a_train).unique()
+    per_group = max(1, size // len(groups),)
     sampled_indices = []
-
     for group in groups:
-        group_pool = np.flatnonzero(
-            a_train == group
-        )
-
+        group_pool = np.flatnonzero(a_train == group)
         if len(group_pool) == 0:
             continue
-
-        group_sample = rng.choice(
-            group_pool,
-            size=per_group,
-            replace=True,
-        )
-
-        sampled_indices.append(
-            group_sample
-        )
-
+        group_sample = rng.choice(group_pool, size=per_group, replace=True,)
+        sampled_indices.append(group_sample)
     if not sampled_indices:
-        raise RuntimeError(
-            "No group-balanced bootstrap indices were generated."
-        )
-
-    indices = np.concatenate(
-        sampled_indices
-    )
-
+        raise RuntimeError("No group-balanced bootstrap indices were generated.")
+    indices = np.concatenate(sampled_indices)
     if len(indices) < size:
-        additional_indices = rng.choice(
-            len(a_train),
-            size=size - len(indices),
-            replace=True,
-        )
-
-        indices = np.concatenate(
-            [
-                indices,
-                additional_indices,
-            ]
-        )
-
+        additional_indices = rng.choice(len(a_train), size=size - len(indices), replace=True,)
+        indices = np.concatenate([indices, additional_indices,])
     if len(indices) > size:
         indices = indices[:size]
+    return np.asarray(indices, dtype=int,)
 
-    return np.asarray(
-        indices,
-        dtype=int,
-    )
 
 
 def input_repair_standardize_by_group(X_train_df: pd.DataFrame, X_test_df: pd.DataFrame, a_train: pd.Series, a_test: pd.Series) -> pd.DataFrame:
@@ -830,13 +644,11 @@ def input_repair_standardize_by_group(X_train_df: pd.DataFrame, X_test_df: pd.Da
     glob_std  = X_train_df[num_cols].std().replace(0, 1.0)
     #Create a copy to avoid modifying original
     X_rep = X_test_df.copy()
-
     #Loop through each group in the test set
     for g in pd.Series(a_test).unique():
         m = (a_test==g) #Boolean mask to identify groups
         #Standardize the groups rows so they are expressed as z-scores w.r.t the training distribution
         X_rep.loc[m, num_cols] = (X_rep.loc[m, num_cols] - glob_mean) / glob_std
     return X_rep
-
 
 

@@ -123,10 +123,5 @@ def _compute_group_rates(y_true, y_pred, groups: pd.Series) -> List[GroupRates]:
         tpr = float(tp / (tp + fn)) if (tp + fn) > 0 else np.nan
         fpr = float(fp / (fp + tn)) if (fp + tn) > 0 else np.nan
 
-        out.append(
-            GroupRates(
-                group=str(g), n=n, positive_rate=positive_rate, tpr=tpr, fpr=fpr,
-                pos_true=pos_true, neg_true=neg_true, TP=tp, FP=fp, TN=tn, FN=fn
-            )
-        )
+        out.append(GroupRates(group=str(g), n=n, positive_rate=positive_rate, tpr=tpr, fpr=fpr, pos_true=pos_true, neg_true=neg_true, TP=tp, FP=fp, TN=tn, FN=fn))
     return out

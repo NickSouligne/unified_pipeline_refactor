@@ -73,10 +73,7 @@ def _plot_fairness_matrix(
     """
     if metric_cols is None:
         #Pick fairness metrics if they were computed
-        candidates = [
-            "positive_rate", "tpr", "fpr",
-            "eo_diff", "eod_tpr_diff", "eod_fpr_diff", "eod_max_abs"
-        ]
+        candidates = ["positive_rate", "tpr", "fpr", "eo_diff", "eod_tpr_diff", "eod_fpr_diff", "eod_max_abs"]
         metric_cols = [c for c in candidates if c in df.columns]
 
     #Handle missing data 

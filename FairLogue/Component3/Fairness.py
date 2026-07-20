@@ -80,9 +80,6 @@ class FairnessPipeline:
     def plots(self, alpha: float = 0.05, m_factor: float = 0.75, delta_uval: float = 0.10,):
         if not self.results_:
             raise RuntimeError("Call fit() before plots().")
-        est, delta, uvals = get_plots(
-            results=self.results_,
-            sampsize=len(self.results_.get('est_choice', [])) if self.results_ else None,
-            alpha=alpha, m_factor=m_factor, delta_uval=delta_uval
-        )
-        return est, delta, uvals, null_long
+        est, delta, uvals = get_plots(results=self.results_, sampsize=len(self.results_.get('est_choice', [])) if self.results_ else None,
+                                       alpha=alpha, m_factor=m_factor, delta_uval=delta_uval)
+        return est, delta, uvals

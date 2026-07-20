@@ -78,11 +78,7 @@ def run_fairlogue_counterfactual_component3(
 
     work = df.copy()
     group_col = "_fairlogue_group"
-    work[group_col] = (
-        work[protected_cols[0]].astype(str)
-        + "|"
-        + work[protected_cols[1]].astype(str)
-    )
+    work[group_col] = (work[protected_cols[0]].astype(str) + "|" + work[protected_cols[1]].astype(str))
 
     pipe = FairnessPipeline(
         group_col=group_col,
@@ -105,8 +101,4 @@ def run_fairlogue_counterfactual_component3(
 
     summary = pipe.summarize()
 
-    return {
-        "component": "component3_counterfactual",
-        "results": results,
-        "summary": summary,
-    }
+    return {"component": "component3_counterfactual", "results": results, "summary": summary,}

@@ -34,24 +34,14 @@ class FairlearnEGPredictor:
     Component 3 does not need to know this came from Fairlearn.
     """
 
-    def __init__(
-        self,
-        features,
-        protected_cols,
-        fitted_model,
-        threshold=0.5,
-    ):
+    def __init__(self, features, protected_cols, fitted_model, threshold=0.5,):
         self.features = list(features)
         self.protected_cols = list(protected_cols)
         self.fitted_model = fitted_model
         self.threshold = threshold
 
     def make_sensitive_features(self, df):
-        return (
-            df[self.protected_cols]
-            .astype(str)
-            .agg("|".join, axis=1)
-        )
+        return (df[self.protected_cols].astype(str).agg("|".join, axis=1))
 
     def predict_proba(self, df):
         """
@@ -95,11 +85,7 @@ if __name__ == "__main__":
     protected_cols = ["A1", "A2"]
     group_col = "A1A2"
 
-    df[group_col] = (
-        df[protected_cols]
-        .astype(str)
-        .agg("|".join, axis=1)
-    )
+    df[group_col] = (df[protected_cols].astype(str).agg("|".join, axis=1))
 
     protected = set(protected_cols + [group_col])
     covariates = [c for c in df.columns if c not in protected | {"Y"}]
@@ -107,12 +93,7 @@ if __name__ == "__main__":
     # ------------------------------------------------------------------
     # 2. Train/test split
     # ------------------------------------------------------------------
-    train_df, test_df = train_test_split(
-        df,
-        test_size=0.30,
-        random_state=42,
-        stratify=df["Y"],
-    )
+    train_df, test_df = train_test_split(df, test_size=0.30, random_state=42, stratify=df["Y"],)
 
     train_df = train_df.reset_index(drop=True)
     test_df = test_df.reset_index(drop=True)
@@ -123,11 +104,7 @@ if __name__ == "__main__":
     X_train = train_df[covariates].copy()
     y_train = train_df["Y"].astype(int)
 
-    sensitive_train = (
-        train_df[protected_cols]
-        .astype(str)
-        .agg("|".join, axis=1)
-    )
+    sensitive_train = (train_df[protected_cols].astype(str).agg("|".join, axis=1))
 
     # ------------------------------------------------------------------
     # 4. Apply SMOTE to training data only
@@ -140,49 +117,24 @@ if __name__ == "__main__":
     X_train_with_group = X_train.copy()
     X_train_with_group["_sensitive_group"] = sensitive_train.values
 
-    group_levels = sorted(
-        X_train_with_group["_sensitive_group"]
-        .astype(str)
-        .unique()
-    )
+    group_levels = sorted(X_train_with_group["_sensitive_group"].astype(str).unique())
 
     group_map = {g: i for i, g in enumerate(group_levels)}
     inverse_group_map = {i: g for g, i in group_map.items()}
 
-    X_train_with_group["_sensitive_group_code"] = (
-        X_train_with_group["_sensitive_group"]
-        .astype(str)
-        .map(group_map)
-        .astype(int)
-    )
+    X_train_with_group["_sensitive_group_code"] = (X_train_with_group["_sensitive_group"].astype(str).map(group_map).astype(int))
 
-    X_train_for_smote = X_train_with_group.drop(
-        columns=["_sensitive_group"]
-    )
+    X_train_for_smote = X_train_with_group.drop(columns=["_sensitive_group"])
 
     smote = SMOTE(random_state=42)
 
-    X_train_smote_all, y_train_smote = smote.fit_resample(
-        X_train_for_smote,
-        y_train,
-    )
+    X_train_smote_all, y_train_smote = smote.fit_resample(X_train_for_smote, y_train)
 
-    X_train_smote_all["_sensitive_group_code"] = (
-        X_train_smote_all["_sensitive_group_code"]
-        .round()
-        .clip(lower=0, upper=len(group_levels) - 1)
-        .astype(int)
-    )
+    X_train_smote_all["_sensitive_group_code"] = (X_train_smote_all["_sensitive_group_code"].round().clip(lower=0, upper=len(group_levels) - 1).astype(int))
 
-    sensitive_train_smote = (
-        X_train_smote_all["_sensitive_group_code"]
-        .map(inverse_group_map)
-        .astype(str)
-    )
+    sensitive_train_smote = ( X_train_smote_all["_sensitive_group_code"].map(inverse_group_map).astype(str))
 
-    X_train_smote = X_train_smote_all.drop(
-        columns=["_sensitive_group_code"]
-    )
+    X_train_smote = X_train_smote_all.drop(columns=["_sensitive_group_code"] )
 
     # ------------------------------------------------------------------
     # 5. Fit real in-processing model
@@ -191,33 +143,17 @@ if __name__ == "__main__":
     # It changes the fitted model by enforcing a fairness constraint.
     # ------------------------------------------------------------------
 
-    base_estimator = LogisticRegression(
-        max_iter=1000,
-        solver="liblinear",
-    )
+    base_estimator = LogisticRegression( max_iter=1000, solver="liblinear", )
 
-    eg_model = ExponentiatedGradient(
-        estimator=base_estimator,
-        constraints=EqualizedOdds(),
-        eps=0.01,
-    )
+    eg_model = ExponentiatedGradient(estimator=base_estimator,constraints=EqualizedOdds(),eps=0.01,)
 
-    eg_model.fit(
-        X_train_smote,
-        y_train_smote,
-        sensitive_features=sensitive_train_smote,
-    )
+    eg_model.fit( X_train_smote, y_train_smote, sensitive_features=sensitive_train_smote,)
 
     # ------------------------------------------------------------------
     # 6. Wrap fitted in-processing model
     # ------------------------------------------------------------------
 
-    eg_predictor = FairlearnEGPredictor(
-        features=covariates,
-        protected_cols=protected_cols,
-        fitted_model=eg_model,
-        threshold=0.5,
-    )
+    eg_predictor = FairlearnEGPredictor(features=covariates,protected_cols=protected_cols,fitted_model=eg_model,threshold=0.5,)
 
     # ------------------------------------------------------------------
     # 7. Save mitigated model into FairModel
@@ -284,11 +220,7 @@ if __name__ == "__main__":
 
     m_c3.pre_process_data()
 
-    res_external = m_c3.fit_fairness_from_fairmodel(
-        cutoff=fair_model.threshold,
-        gen_null=False,
-        bootstrap="none",
-    )
+    res_external = m_c3.fit_fairness_from_fairmodel(cutoff=fair_model.threshold, gen_null=False, bootstrap="none",)
 
     # ------------------------------------------------------------------
     # 10. Report Component 3 audit results
@@ -301,12 +233,7 @@ if __name__ == "__main__":
     print("Tau:", res_external.get("tau"))
 
     print("\n[Point estimates]")
-    print(
-        m_c3
-        .summarize()
-        .sort_values("stat")
-        .to_string(index=False)
-    )
+    print(m_c3.summarize().sort_values("stat").to_string(index=False))
 
     # ------------------------------------------------------------------
     # 11. Confirm counterfactual columns were generated
