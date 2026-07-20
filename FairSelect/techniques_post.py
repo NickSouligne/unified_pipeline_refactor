@@ -414,8 +414,8 @@ def fit_aif360_reject_option(
     metric_ub=0.05,
     low_class_thresh=0.01,
     high_class_thresh=0.99,
-    num_class_thresh=100,
-    num_ROC_margin=50,
+    num_class_thresh=20,
+    num_ROC_margin=10,
 ):
     y_val = np.asarray(y_val, dtype=int).ravel()
     p_val = np.asarray(p_val, dtype=float).ravel()
@@ -501,8 +501,8 @@ def run_reject_option_shift(
     metric_ub=0.05,
     low_class_thresh=0.01,
     high_class_thresh=0.99,
-    num_class_thresh=100,
-    num_ROC_margin=50,
+    num_class_thresh=20,
+    num_ROC_margin=10,
     unprivileged_values=None,
     privileged_values=None,
 ):

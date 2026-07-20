@@ -4,92 +4,36 @@ import pandas as pd
 
 from .runner import PipelineConfig, run_pipeline
 
+### Command line interface for running the fairness pipeline
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Run fairness pipeline from command line"
-    )
-    parser.add_argument(
-        "--min-group-size",
-        type=int,
-        default=20,
-        help="Minimum acceptable intersectional group size. Default: 20."
-    )
+    parser = argparse.ArgumentParser(description="Run fairness pipeline from command line")
 
-    parser.add_argument(
-        "--allow-incomplete-outcome-coverage",
-        action="store_true",
-        help="Allow groups that do not contain both outcome classes."
-    )
+    parser.add_argument("--min-group-size", type=int, default=20, help="Minimum acceptable intersectional group size. Default: 20.")
 
-    parser.add_argument(
-        "--no-group-filter",
-        action="store_true",
-        help="Disable filtering of small or incomplete intersectional groups."
-    )
+    parser.add_argument("--allow-incomplete-outcome-coverage", action="store_true", help="Allow groups that do not contain both outcome classes.")
 
-    parser.add_argument(
-        "--data",
-        required=True,
-        help="Path to CSV dataset"
-    )
+    parser.add_argument("--no-group-filter", action="store_true",help="Disable filtering of small or incomplete intersectional groups.")
 
-    parser.add_argument(
-        "--target",
-        required=True,
-        help="Target column name"
-    )
+    parser.add_argument("--data",required=True,help="Path to CSV dataset")
 
-    parser.add_argument(
-        "--protected",
-        nargs="+",
-        required=True,
-        help="Protected attribute columns"
-    )
+    parser.add_argument("--target",required=True,help="Target or outcome column name")
 
-    parser.add_argument(
-        "--features",
-        nargs="+",
-        required=True,
-        help="Feature columns"
-    )
+    parser.add_argument("--protected", nargs="+", required=True, help="Protected attribute columns")
 
-    parser.add_argument(
-        "--model",
-        default="Logistic Regression",
-        help="Model name"
-    )
+    parser.add_argument("--features", nargs="+", required=True, help="Feature columns")
 
-    parser.add_argument(
-        "--params",
-        default="{}",
-        help="JSON string of model parameters"
-    )
+    parser.add_argument("--model", default="Logistic Regression", help="Model name")
 
-    parser.add_argument(
-        "--techniques",
-        nargs="*",
-        default=[],
-        help="Selected fairness techniques"
-    )
+    parser.add_argument("--params",default="{}",help="JSON string of model parameters")
 
-    parser.add_argument(
-        "--no-baseline",
-        action="store_true",
-        help="Disable baseline run"
-    )
+    parser.add_argument("--techniques",nargs="*",default=[],help="Selected fairness techniques")
 
-    parser.add_argument(
-        "--no-combined",
-        action="store_true",
-        help="Disable combined run"
-    )
+    parser.add_argument("--no-baseline", action="store_true",help="Disable baseline run")
 
-    parser.add_argument(
-        "--output",
-        default=None,
-        help="Optional path to save results CSV"
-    )
+    parser.add_argument("--no-combined",action="store_true",help="Disable combined run")
+
+    parser.add_argument("--output", default=None,help="Optional path to save results CSV")
 
     parser.add_argument(
         "--seeds",
