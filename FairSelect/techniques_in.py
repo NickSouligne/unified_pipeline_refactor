@@ -1320,7 +1320,7 @@ def run_reductions_meta(
     A_te,
     protected_cols,
     all_df_train,
-    constraint="EO",
+    constraint="DP",
     outcome_col=None,
 ):
     """

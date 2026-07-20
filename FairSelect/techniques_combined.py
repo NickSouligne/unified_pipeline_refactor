@@ -793,7 +793,7 @@ def run_combined_pipeline(model_name, params,
             p_val=P_val,
             A_val=Ava,
             group_mapping=group_mapping,
-            metric_name="Average odds difference",
+            metric_name="Statistical parity difference",
             metric_lb=-0.05,
             metric_ub=0.05,
         )
