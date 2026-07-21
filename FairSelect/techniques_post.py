@@ -257,7 +257,7 @@ def fit_aif360_reject_option(y_val, p_val, A_val, group_mapping, unprivileged_va
 
 def run_reject_option_shift(model_name, params, X_tr, X_va, X_te, y_tr, y_va, y_te, A_tr, A_va, A_te, protected_cols, all_df_train, outcome_col=None, 
                             metric_name="Average odds difference", metric_lb=-0.05, metric_ub=0.05, low_class_thresh=0.01, high_class_thresh=0.99, 
-                            num_class_thresh=20, num_ROC_margin=10, unprivileged_values=None, privileged_values=None,):
+                            num_class_thresh=10, num_ROC_margin=10, unprivileged_values=None, privileged_values=None,):
     """
     Apply AIF360 Reject Option Classification.
 
