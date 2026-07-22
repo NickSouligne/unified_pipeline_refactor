@@ -48,6 +48,9 @@ def run_combined_pipeline(model_name, params, X_tr, X_va, X_te, y_tr, y_va, y_te
     IN_TRAIN  = ["In:Reductions (EO)", "In:Compositional per-group", "In:Ensemble (K=5)", "In:Fairness Regularization (Prejudice Remover)"]
     IN_CAL    = "In:Multicalibration (isotonic)"
     POST_KEYS = ["Post:Input Repair", "Post:Multiaccuracy Boost", "Post:Youden per group", "Post:Reject-Option Shift"]
+    aif360_roc_for_fairmodel = None
+    aif360_roc_group_mapping = None
+    aif360_roc_metadata = None
     #Execution plans based on selections that preserve order
     pre_plan  = [k for k in PRE_KEYS  if selected.get(k, False)]
     in_train  = [k for k in IN_TRAIN  if selected.get(k, False)][:1]  #at most one trainer
