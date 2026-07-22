@@ -44,6 +44,17 @@ try:
 except Exception:
     SKLEARN_OK = False
 
+
+KERAS_OK = True
+
+try:
+    import tensorflow as tf
+    from scikeras.wrappers import KerasClassifier
+except Exception:
+    KERAS_OK = False
+    tf = None
+    KerasClassifier = None
+
 IMBLEARN_OK = True
 try:
     from imblearn.over_sampling import SMOTE, RandomOverSampler  

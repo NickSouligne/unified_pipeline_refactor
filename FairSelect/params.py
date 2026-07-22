@@ -1,5 +1,5 @@
 from typing import Dict, List, Any
-from .deps import SKLEARN_OK, XGB_OK, LGBM_OK
+from .deps import SKLEARN_OK, XGB_OK, LGBM_OK, KERAS_OK
 
 
 """
@@ -32,12 +32,19 @@ PARAM_SPECS["Logistic Regression"] = [
 
 #Neural Network
 PARAM_SPECS["Neural Network"] = [
+    _p("backend", "choice", False, "sklearn", "Neural-network implementation.", ["sklearn", "keras"]),
     _p("hidden_layer_sizes", str, False, "(100,)", "Tuple-like string, e.g. '(128,64)'."),
     _p("activation", "choice", False, "relu", "Activation.", ["identity", "logistic", "tanh", "relu"]),
-    _p("solver", "choice", False, "adam", "Optimizer.", ["lbfgs", "sgd", "adam"]),
-    _p("alpha", float, False, 0.0001, "L2 term."),
-    _p("learning_rate", "choice", False, "constant", "LR schedule.", ["constant", "invscaling", "adaptive"]),
-    _p("max_iter", int, False, 200, "Max iterations."),
+    _p("solver", "choice", False, "adam", "Scikit-learn optimizer.", ["lbfgs", "sgd", "adam"]),
+    _p("alpha", float, False, 0.0001, "L2 regularization strength."),
+    _p("learning_rate", "choice", False, "constant", "Scikit-learn learning-rate schedule.", ["constant", "invscaling", "adaptive"]),
+    _p("learning_rate_init", float, False, 0.001, "Initial learning rate."),
+    _p("max_iter", int, False, 200, "Scikit-learn iterations or fallback Keras epochs."),
+    _p("epochs", int, False, 200, "Keras training epochs."),
+    _p("batch_size", int, False, 256, "Keras batch size."),
+    _p("validation_split", float, False, 0.1, "Keras validation fraction."),
+    _p("early_stopping", bool, False, True, "Enable early stopping."),
+    _p("patience", int, False, 10, "Keras early-stopping patience."),
     _p("random_state", int, False, None, "Random seed."),
 ]
 

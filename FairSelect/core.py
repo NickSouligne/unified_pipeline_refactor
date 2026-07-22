@@ -2,12 +2,15 @@ from dataclasses import dataclass, field
 from typing import Dict, Any, List, Optional, Tuple, Union, Sequence
 import numpy as np
 import pandas as pd
+
 from .deps import (
     ColumnTransformer, StandardScaler, OneHotEncoder,
     LogisticRegression, MLPClassifier, RandomForestClassifier,
-    DecisionTreeClassifier, SVC, XGB_OK, LGBM_OK, XGBClassifier, LGBMClassifier,
+    DecisionTreeClassifier, SVC, XGB_OK, LGBM_OK,
+    XGBClassifier, LGBMClassifier, KERAS_OK, tf, KerasClassifier,
     train_test_split,
 )
+
 from .utils import (
     group_key, metrics_block, confusion_rates, ece_bin, macro_gaps,
 )
@@ -73,6 +76,32 @@ class RunResult:
     y_pred_test: object | None = None
     refit_spec: FairSelectPlanSpec | None = None
 
+
+def build_keras_mlp(meta, hidden_layer_sizes=(100,), activation="relu", alpha=0.0001, learning_rate_init=0.001):
+    """Construct and compile the TensorFlow/Keras MLP used by SciKeras."""
+    activation_aliases = {"identity": "linear", "logistic": "sigmoid"}
+    keras_activation = activation_aliases.get(activation, activation)
+
+    model = tf.keras.Sequential([
+        tf.keras.layers.Input(shape=(meta["n_features_in_"],)),
+        *[
+            tf.keras.layers.Dense(
+                units=int(units),
+                activation=keras_activation,
+                kernel_regularizer=tf.keras.regularizers.l2(float(alpha)),
+            )
+            for units in hidden_layer_sizes
+        ],
+        tf.keras.layers.Dense(1, activation="sigmoid"),
+    ])
+
+    model.compile(
+        optimizer=tf.keras.optimizers.Adam(learning_rate=float(learning_rate_init)),
+        loss="binary_crossentropy",
+        metrics=["accuracy"],
+    )
+
+    return model
     
 #---Core training runners---
 def build_estimator(model_name, params=None):
@@ -136,22 +165,79 @@ def build_estimator(model_name, params=None):
                                   class_weight=class_weight, random_state=params.get("random_state"),)
     
     if canonical_name == "neural_network":
-        hidden_layer_sizes = params.get("hidden_layer_sizes")
-        if hidden_layer_sizes is None:
-            hidden_layer_sizes = (100,)
-        elif isinstance(hidden_layer_sizes, list):
+        backend = str(params.pop("backend", "sklearn")).strip().lower()
+        backend_aliases = {
+            "sklearn": "sklearn",
+            "scikit-learn": "sklearn",
+            "scikit_learn": "sklearn",
+            "mlpclassifier": "sklearn",
+            "keras": "keras",
+            "tensorflow": "keras",
+            "tf": "keras",
+        }
+
+        backend = backend_aliases.get(backend)
+
+        if backend is None:
+            raise ValueError("Unknown neural-network backend. Use 'sklearn' or 'keras'.")
+
+        hidden_layer_sizes = params.get("hidden_layer_sizes", (100,))
+
+        if isinstance(hidden_layer_sizes, list):
             hidden_layer_sizes = tuple(hidden_layer_sizes)
         elif isinstance(hidden_layer_sizes, int):
             hidden_layer_sizes = (hidden_layer_sizes,)
-        alpha = params.get("alpha", 0.0001)
-        if alpha is None:
-            alpha = 0.0001
-        max_iter = params.get("max_iter", 200)
-        if max_iter is None:
-            max_iter = 200
-        return MLPClassifier(hidden_layer_sizes=hidden_layer_sizes, activation=params.get("activation", "relu"), solver=params.get("solver", "adam"),
-                            alpha=float(alpha), learning_rate=params.get("learning_rate", "constant",), max_iter=int(max_iter), random_state=params.get("random_state"),)
-    
+
+        alpha = float(params.get("alpha", 0.0001) or 0.0001)
+        random_state = params.get("random_state")
+
+        if backend == "sklearn":
+            max_iter = int(params.get("max_iter", 200) or 200)
+
+            return MLPClassifier(
+                hidden_layer_sizes=hidden_layer_sizes,
+                activation=params.get("activation", "relu"),
+                solver=params.get("solver", "adam"),
+                alpha=alpha,
+                learning_rate=params.get("learning_rate", "constant"),
+                learning_rate_init=float(params.get("learning_rate_init", 0.001)),
+                max_iter=max_iter,
+                early_stopping=bool(params.get("early_stopping", False)),
+                random_state=random_state,
+            )
+
+        if not KERAS_OK:
+            raise ImportError("The Keras neural-network backend requires TensorFlow and "
+                "SciKeras. Install it with `pip install unified_fair_pipeline[keras]`.")
+
+        callbacks = []
+
+        if bool(params.get("early_stopping", True)):
+            callbacks.append(
+                tf.keras.callbacks.EarlyStopping(
+                    monitor=params.get("early_stopping_monitor", "val_loss"),
+                    patience=int(params.get("patience", 10)),
+                    min_delta=float(params.get("min_delta", 0.0)),
+                    restore_best_weights=True,
+                )
+            )
+
+        return KerasClassifier(
+            model=build_keras_mlp,
+            model__hidden_layer_sizes=hidden_layer_sizes,
+            model__activation=params.get("activation", "relu"),
+            model__alpha=alpha,
+            model__learning_rate_init=float(
+                params.get("learning_rate_init", 0.001)
+            ),
+            epochs=int(params.get("epochs", params.get("max_iter", 200))),
+            batch_size=int(params.get("batch_size", 256)),
+            validation_split=float(params.get("validation_split", 0.1)),
+            callbacks=callbacks,
+            random_state=random_state,
+            verbose=int(params.get("verbose", 0)),
+        )
+        
     if canonical_name == "random_forest":
         max_features = params.get("max_features", "sqrt")
         if (isinstance(max_features, str) and max_features.lower() == "none"):
